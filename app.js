@@ -216,7 +216,7 @@ function groupBy(items, key) {
 
 const state = {
   items: [], people: [], hidden: new Set(), off: new Set(), span: null, registry: [],
-  coded: '',
+  coded: '', scrollLeft: null, whoWidth: '4ch',
 };
 
 function renderPeopleFilter() {
@@ -273,9 +273,11 @@ function renderDays() {
 
         const nowLine = isToday ? '<div class="now" hidden></div>' : '';
 
-        return `<div class="who">${esc(who)}</div>
-                <div class="lane" style="height:${Math.max(rows, 1) * ROW_H + CHIP_H - ROW_H + 6}px">
-                  ${chips}${nowLine}
+        return `<div class="row">
+                  <div class="who">${esc(who)}</div>
+                  <div class="lane" style="height:${Math.max(rows, 1) * ROW_H + CHIP_H - ROW_H + 6}px">
+                    ${chips}${nowLine}
+                  </div>
                 </div>`;
       }).join('');
 
@@ -289,13 +291,45 @@ function renderDays() {
           offCount ? ` · ${offCount} מבוטלות` : ''}</span>
       </div>
       <div class="scroller">
-        <div class="grid" style="--hour-w:calc(100% / ${total / 60})">
-          <div class="ruler">${ticks.join('')}</div>
+        <div class="track" style="--hour-w:calc(100% / ${total / 60});--who-w:${state.whoWidth}">
+          <div class="row">
+            <div class="who-pad"></div>
+            <div class="ruler">${ticks.join('')}</div>
+          </div>
           ${lanes}
         </div>
       </div>
     </section>`;
   }).join('');
+
+  syncScrollers();
+}
+
+/**
+ * Day blocks are wider than a phone, so they scroll — as one, and starting at
+ * the activity-dense end of the day rather than at the morning. Assigning a
+ * large negative scrollLeft lands on the leftmost edge under either RTL
+ * convention (0-at-start or 0-at-left).
+ */
+function syncScrollers() {
+  const scrollers = [...el.days.querySelectorAll('.scroller')];
+  if (!scrollers.length) return;
+
+  if (state.scrollLeft === null) {
+    scrollers[0].scrollLeft = -1e6;
+    state.scrollLeft = scrollers[0].scrollLeft;
+  }
+
+  for (const scroller of scrollers) {
+    scroller.scrollLeft = state.scrollLeft;
+    scroller.addEventListener('scroll', () => {
+      if (scroller.scrollLeft === state.scrollLeft) return;
+      state.scrollLeft = scroller.scrollLeft;
+      for (const other of scrollers) {
+        if (other !== scroller) other.scrollLeft = state.scrollLeft;
+      }
+    }, { passive: true });
+  }
 }
 
 /** Moves the "now" marker without re-rendering (keeps focus and tooltips alive). */
@@ -436,6 +470,7 @@ function start(entries) {
 
   state.items = items;
   state.people = [...seen];
+  state.whoWidth = `calc(${Math.max(...[...seen].map((p) => p.length), 3)}ch + 18px)`;
   state.hidden = new Set();
   state.off = off;
   state.span = { from, to: Math.max(to, from + 60) };
