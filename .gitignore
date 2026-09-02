@@ -1,0 +1,4 @@
+# the plaintext schedule and the key that protects it never go to git
+secret
+schedule.json
+input.csv
