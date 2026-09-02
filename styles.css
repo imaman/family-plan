@@ -392,6 +392,9 @@ body.locked .controls { display: none; }
   line-height: 1.6;
 }
 
+.error ul { margin: 8px 0 8px; padding-inline-start: 20px; }
+.error li { margin: 3px 0; }
+
 .error code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12.5px;

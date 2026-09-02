@@ -35,6 +35,40 @@ function readKey() {
   return { key, created: true };
 }
 
+/**
+ * Entry ids are what the page keys cancellations on, so a missing or reused id
+ * is a hard error: nothing gets encoded, and nothing gets pushed.
+ */
+function validate(entries) {
+  if (!Array.isArray(entries)) {
+    console.error(`${SOURCE} must contain a JSON array`);
+    process.exit(1);
+  }
+
+  const problems = [];
+  const seen = new Map();
+
+  entries.forEach((entry, i) => {
+    const at = `entry #${i + 1}`;
+    const id = String(entry && entry.id != null ? entry.id : '').trim();
+    if (!id) {
+      problems.push(`${at} has no id`);
+      return;
+    }
+    if (seen.has(id)) {
+      problems.push(`${at} reuses id "${id}", already used by entry #${seen.get(id)}`);
+      return;
+    }
+    seen.set(id, i + 1);
+  });
+
+  if (problems.length) {
+    console.error(`${SOURCE} is not valid:`);
+    for (const problem of problems) console.error(`  ${problem}`);
+    process.exit(1);
+  }
+}
+
 /** Decrypts schedule.coded back to its plaintext bytes. */
 function decode(key, coded) {
   const bytes = Buffer.from(coded.replace(/\s+/g, ''), 'base64');
@@ -60,6 +94,7 @@ function check() {
 
   const { key } = readKey();
   const source = fs.readFileSync(SOURCE);
+  validate(JSON.parse(source.toString('utf8')));
   let decoded;
   try {
     decoded = decode(key, fs.readFileSync(TARGET, 'utf8'));
@@ -81,7 +116,7 @@ function main() {
 
   const { key, created } = readKey();
   const plain = fs.readFileSync(SOURCE);
-  JSON.parse(plain.toString('utf8')); // fail here rather than in the browser
+  validate(JSON.parse(plain.toString('utf8'))); // fail here rather than in the browser
 
   const iv = crypto.randomBytes(IV_LEN);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);

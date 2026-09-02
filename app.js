@@ -122,40 +122,55 @@ async function decodeSchedule(coded, rawKey) {
 
 /* ---------- model ---------- */
 
-/** One JSON entry with several days becomes one item per day. */
+/**
+ * One JSON entry with several days becomes one item per day. The item id is the
+ * entry's own id plus the day, so a cancellation survives edits to any other
+ * field (a fixed typo, a changed hour or place) while each day of a repeating
+ * entry stays separately cancellable.
+ */
 function toItems(entries) {
   const items = [];
   const skipped = [];
-  const idSeen = new Map();
+  const fatal = [];
+  const seenIds = new Map();
 
   entries.forEach((entry, i) => {
     const start = toMinutes(entry.startHour);
     const end = toMinutes(entry.endHour);
-    const days = Array.isArray(entry.days) ? entry.days : [entry.days];
+    const days = (Array.isArray(entry.days) ? entry.days : [entry.days])
+      .map((d) => String(d == null ? '' : d).trim())
+      .filter(Boolean);
+    const id = String(entry.id == null ? '' : entry.id).trim();
 
-    if (!entry.who || start == null || end == null || end <= start || !days.length) {
-      skipped.push(i + 1);
+    if (!id) {
+      fatal.push(`רשומה ${i + 1}: אין id`);
       return;
     }
+    if (seenIds.has(id)) {
+      fatal.push(`רשומה ${i + 1}: id "${id}" כבר בשימוש ברשומה ${seenIds.get(id)}`);
+      return;
+    }
+    if (!entry.who || start == null || end == null || end <= start || !days.length) {
+      skipped.push(`${i + 1} (id ${id}: שדות חסרים או שעות לא תקינות)`);
+      return;
+    }
+    seenIds.set(id, i + 1);
+
     for (const day of days) {
-      const item = {
+      items.push({
+        id: `${id}:${day}`,
         who: String(entry.who).trim(),
         what: String(entry.what || '').trim(),
         where: String(entry.where || '').trim(),
-        day: String(day).trim(),
+        day,
         start,
         end,
         clashes: [],
-      };
-      const base = [item.who, item.day, item.what, item.where, start, end].join('|');
-      const n = (idSeen.get(base) || 0) + 1;
-      idSeen.set(base, n);
-      item.id = n === 1 ? base : `${base}#${n}`;
-      items.push(item);
+      });
     }
   });
 
-  return { items, skipped };
+  return { items, skipped, fatal };
 }
 
 /**
@@ -300,8 +315,10 @@ function renderSummary() {
   el.summary.textContent = n ? `⚠ ${n} פעילויות בחפיפה` : 'אין חפיפות בלוח';
   el.summary.classList.toggle('clean', n === 0);
 
-  el.reset.hidden = state.off.size === 0;
-  el.reset.textContent = `${state.off.size} מבוטלות · החזר הכל`;
+  // ids kept from a deleted entry stay in storage but must not be counted here
+  const cancelled = state.items.filter((it) => state.off.has(it.id)).length;
+  el.reset.hidden = cancelled === 0;
+  el.reset.textContent = `${cancelled} מבוטלות · החזר הכל`;
 }
 
 /** Flips one event between attending and not, then redraws. */
@@ -394,7 +411,19 @@ el.focus.addEventListener('change', () => {
 });
 
 function start(entries) {
-  const { items, skipped } = toItems(entries);
+  const { items, skipped, fatal } = toItems(entries);
+
+  // A broken id means cancellations can attach to the wrong activity, so refuse
+  // to draw a board that would look complete while an activity is missing.
+  if (fatal.length) {
+    el.days.innerHTML = '';
+    el.error.hidden = false;
+    el.error.innerHTML = `<b>הלוח לא הוצג — בעיית מזהים ב-schedule.json</b>
+      <ul>${fatal.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+      <div>תקנו את הקובץ והריצו <code>npm run encode</code>.</div>`;
+    return;
+  }
+
   if (!items.length) throw new Error('לא נמצאו רשומות תקינות בלוח');
 
   const off = loadOff();
@@ -419,7 +448,7 @@ function start(entries) {
 
   if (skipped.length) {
     el.error.hidden = false;
-    el.error.innerHTML = `דולגו רשומות לא תקינות ב-schedule.json (מספרי רשומה: ${skipped.join(', ')}).`;
+    el.error.innerHTML = `דולגו רשומות ב-schedule.json: ${esc(skipped.join('; '))}`;
   }
   setInterval(updateNow, 60_000); // keeps the "now" marker honest
 }
