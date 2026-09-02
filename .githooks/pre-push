@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Blocks a push when schedule.coded does not match schedule.json, so the
+# published page can never serve a stale schedule. Enabled with:
+#
+#   git config core.hooksPath .githooks
+#
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+# The whole point of the encrypted file: these must never be tracked.
+leaked=$(git ls-files -- secret schedule.json input.csv)
+if [ -n "$leaked" ]; then
+  echo "pre-push: refusing — these files are private but tracked by git:" >&2
+  echo "$leaked" | sed 's/^/  /' >&2
+  echo "fix: git rm --cached <file>" >&2
+  exit 1
+fi
+
+# A clone without the plaintext (or without the key) simply cannot check.
+if [ ! -f schedule.json ] || [ ! -f secret ]; then
+  echo "pre-push: skipping schedule.coded check (no local schedule.json/secret)"
+  exit 0
+fi
+
+node encode.js --check

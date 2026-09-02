@@ -20,34 +20,56 @@ the browser's local storage.
 | `secret`           | **no**    | the 256-bit key, base64                           |
 | `input.csv`        | **no**    | optional CSV source for `schedule.json`           |
 | `encode.js`        | yes       | encrypts `schedule.json` into `schedule.coded`    |
+| `.githooks/pre-push`| yes      | blocks a push with a stale or leaky data file      |
+| `package.json`     | yes       | the `encode` / `parse` scripts; no dependencies   |
 | `parse-schedule.js`| yes       | converts a CSV of activities into `schedule.json` |
 
 ## Changing the schedule
 
 ```sh
-$EDITOR schedule.json          # or: node parse-schedule.js input.csv > schedule.json
-node encode.js                 # rewrites schedule.coded
+$EDITOR schedule.json          # or: npm run parse   (input.csv -> schedule.json)
+npm run encode                 # rewrites schedule.coded
 git add schedule.coded && git commit -m "update schedule"
 ```
 
-The first `node encode.js` creates `secret` with a fresh random key and prints
+`npm run encode` picks a fresh random IV every time, so the whole of
+`schedule.coded` changes on each run even when the schedule did not — that is
+required (an IV must never be reused with the same key), not churn to suppress.
+
+The first `npm run encode` creates `secret` with a fresh random key and prints
 it. Keep it — the schedule cannot be opened without it, and nothing can
 recover it.
 
 ## Viewing it
 
-`fetch` is blocked for pages opened straight from disk, so serve the directory:
+The page fetches `schedule.coded` from its own directory, which browsers refuse
+for pages opened straight from disk, so serve the directory:
 
 ```sh
-python3 -m http.server 8000     # then open http://localhost:8000
+npx serve .                     # or: python3 -m http.server 8000
 ```
 
-Paste the key from `secret` into the box on first load. (Opening the page from
-`file://` also works — it offers a file picker for `schedule.coded` instead.)
+Paste the key from `secret` into the box on first load; it is remembered per
+browser.
 
 Decryption uses WebCrypto, which browsers only expose over `https` or on
 `localhost`. GitHub Pages serves `https`, so the published page is fine; a page
 served over plain `http` from a LAN address is not.
+
+## The pre-push hook
+
+`.githooks/pre-push` refuses a push when `schedule.coded` does not decrypt to
+the current `schedule.json` — that is, when the schedule was edited but not
+re-encoded — and also when `secret`, `schedule.json` or `input.csv` have somehow
+become tracked. Enable it once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+A clone that has no `schedule.json` or `secret` cannot check anything, so the
+hook says so and lets the push through; only the owner's machine can verify.
+The same check on demand: `npm run check`.
 
 ## Rotating the key
 

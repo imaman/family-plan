@@ -401,8 +401,6 @@ body.locked .controls { display: none; }
   unicode-bidi: embed;
 }
 
-.error input[type="file"] { margin-top: 10px; font: inherit; font-size: 12.5px; }
-
 @media (max-width: 560px) {
   body { padding: 14px 10px 48px; }
   .controls { margin-inline-start: 0; }

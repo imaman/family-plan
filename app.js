@@ -424,31 +424,11 @@ function start(entries) {
   setInterval(updateNow, 60_000); // keeps the "now" marker honest
 }
 
-/**
- * The coded file itself is public; only the key is secret. Reading it from disk
- * over file:// is blocked by the browser, so offer a picker as a fallback.
- */
-function loadCoded() {
-  return fetch(CODED_FILE, { cache: 'no-store' })
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    })
-    .catch((err) => new Promise((resolve) => {
-      el.error.hidden = false;
-      el.error.innerHTML = `
-        <b>לא ניתן לטעון את ${CODED_FILE}</b>
-        <div>${esc(err.message)}</div>
-        <div>אם פתחתם את הקובץ ישירות מהדיסק, הדפדפן חוסם קריאת קבצים. הריצו שרת מקומי מהתיקייה:</div>
-        <div><code>python3 -m http.server 8000</code></div>
-        <div>ואז פתחו <code>http://localhost:8000</code> — או בחרו את הקובץ ידנית:</div>
-        <input type="file" accept=".coded,.txt,text/plain">
-      `;
-      el.error.querySelector('input').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (file) resolve(await file.text());
-      });
-    }));
+/** The coded file sits next to the page; there is nothing to show without it. */
+async function loadCoded() {
+  const res = await fetch(CODED_FILE, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
 }
 
 function showUnlock(message) {
@@ -496,8 +476,14 @@ async function boot() {
     return;
   }
 
-  state.coded = await loadCoded();
-  el.error.hidden = true;
+  try {
+    state.coded = await loadCoded();
+  } catch (err) {
+    el.error.hidden = false;
+    el.error.innerHTML = `<b>לא ניתן לטעון את ${CODED_FILE}</b>
+      <div>${esc(err.message)}</div>`;
+    return;
+  }
 
   let saved = null;
   try {
