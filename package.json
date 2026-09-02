@@ -1,0 +1,13 @@
+{
+  "name": "family-schedule",
+  "version": "1.0.0",
+  "description": "A static, read-only week view of the family schedule: one block per day, a lane per person, time running right-to-left across the block. Overlapping activities for the same person stack inside their lane and are flagged as conflicts; an activity can be clicked to mark it as \"not attending\", which also removes it from conflict detection.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
