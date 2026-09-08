@@ -505,7 +505,7 @@ function showUnlock(message) {
 
 /** Renders the schedule once a key decrypts it, and remembers that key. */
 async function unlock(rawKey, remember) {
-  const entries = await decodeSchedule(state.coded, rawKey);
+  const entries = (await decodeSchedule(state.coded, rawKey)).filter(at => at.status !== 'off');
   start(entries);
   document.body.classList.remove('locked');
   el.unlock.hidden = true;
